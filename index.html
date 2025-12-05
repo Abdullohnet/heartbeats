@@ -20,7 +20,7 @@
   button { margin-top:20px; padding:12px 25px; font-size:18px; border:none; border-radius:10px; cursor:pointer; }
   #startBtn { background:#00c853; color:#fff; }
   #stopBtn { background:#d50000; margin-left:10px; color:#fff; }
-  #bpmBox { margin-top:25px; font-size:22px; padding:15px 30px; border-radius:15px; background:#222; }
+  #bpmBox { margin-top:25px; font-size:22px; padding:15px 30px; border-radius:15px; background:#222; text-align:center; }
   #status { margin-top:10px; font-size:16px; opacity:0.8; }
 </style>
 </head>
@@ -65,7 +65,7 @@ document.getElementById("startBtn").onclick = async () => {
     video:{ facingMode:"environment", width:300, height:300 }
   });
   video.srcObject = stream;
-  statusText.innerText = "Barmoqni kameraga qo'ying...";
+  statusText.innerText = "Barmoqni kameraga qo'ying va flash yoqing...";
   measureLoop();
 };
 
@@ -91,7 +91,7 @@ function measureLoop() {
 
   let R=sumR/count, G=sumG/count, B=sumB/count;
 
-  // Finger detection
+  // Finger detection (iPhone 11 uchun)
   let finger = (R>90 && R>G*1.2 && R>B*1.2);
   if(!finger){
     bpmText.innerText="0";
@@ -108,7 +108,7 @@ function measureLoop() {
   signal.push({t:now,v:R});
   signal=signal.filter(p=>now-p.t<10000);
 
-  // Peak detection
+  // Smooth + peak detection
   let smooth = movingAverage(signal.map(p=>p.v),5);
   let peaks=[];
   for(let i=1;i<smooth.length-1;i++){
@@ -117,9 +117,8 @@ function measureLoop() {
     }
   }
 
-  // Yangi tepaliklar soni
-  let newPeaks = peaks.filter(t => !lastPeaks.includes(t));
-  if(newPeaks.length>0) lastPeaks=peaks;
+  // Yangi tepaliklar
+  lastPeaks = peaks;
 
   // BPM
   if(peaks.length>=2){
