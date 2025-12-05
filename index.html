@@ -3,145 +3,355 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Yurak Urishi</title>
+<title>color specifier</title>
 <style>
-  body {
-    margin:0;
-    font-family: Arial, sans-serif;
-    background:#111;
-    color:#fff;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    padding:20px;
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
   }
-  h2 { margin-top:30px; font-size:24px; }
-  video { width:250px; border-radius:12px; margin-top:20px; background:#000; }
-  button { margin-top:20px; padding:12px 25px; font-size:18px; border:none; border-radius:10px; cursor:pointer; }
-  #startBtn { background:#00c853; color:#fff; }
-  #stopBtn { background:#d50000; margin-left:10px; color:#fff; }
-  #bpmBox { margin-top:25px; font-size:22px; padding:15px 30px; border-radius:15px; background:#222; text-align:center; }
-  #status { margin-top:10px; font-size:16px; opacity:0.8; }
+  
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #f8f9fa;
+    color: #333;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .container {
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+  }
+  
+  .header {
+    margin-bottom: 24px;
+  }
+  
+  h1 {
+    font-size: 24px;
+    font-weight: 500;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+  }
+  
+  .subtitle {
+    font-size: 14px;
+    color: #666;
+  }
+  
+  .camera-container {
+    width: 100%;
+    height: 240px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #000;
+    margin-bottom: 24px;
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Kamerani to'g'ri ko'rsatish uchun */
+    transform: scaleX(1); /* Normal holat */
+  }
+  
+  .camera-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px;
+    height: 80px;
+    border: 2px solid rgba(255,255,255,0.8);
+    border-radius: 50%;
+    pointer-events: none;
+    /* Overlay ham to'g'ri ko'rinishi kerak */
+    transform: translate(-50%, -50%) scaleX(1);
+  }
+  
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  
+  button {
+    flex: 1;
+    padding: 14px 0;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .btn-primary {
+    background: #4f46e5;
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    background: #4338ca;
+  }
+  
+  .btn-secondary {
+    background: #f1f5f9;
+    color: #475569;
+  }
+  
+  .btn-secondary:hover {
+    background: #e2e8f0;
+  }
+  
+  .color-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+  
+  .color-box {
+    width: 80px;
+    height: 80px;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  
+  .color-info {
+    text-align: left;
+  }
+  
+  .color-label {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 4px;
+  }
+  
+  .color-value {
+    font-size: 18px;
+    font-weight: 500;
+    font-family: 'Courier New', monospace;
+    color: #1a1a1a;
+    margin-bottom: 8px;
+  }
+  
+  .copy-btn {
+    background: #f1f5f9;
+    color: #475569;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .copy-btn:hover {
+    background: #e2e8f0;
+  }
+  
+  .instructions {
+    font-size: 13px;
+    color: #666;
+    background: #f8fafc;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border-left: 3px solid #4f46e5;
+    text-align: left;
+  }
+  
+  canvas {
+    display: none;
+    /* Canvas ham to'g'ri bo'lishi kerak */
+    transform: scaleX(1);
+  }
 </style>
 </head>
 <body>
+  <div class="container">
+    <div class="header">
+      <h1>Color specifier</h1>
+      <div class="subtitle">Kamera orqali atrofdagi ranglarni aniqlang</div>
+    </div>
+    
+    <div class="camera-container">
+      <video id="video" autoplay playsinline></video>
+      <div class="camera-overlay"></div>
+    </div>
+    
+    <div class="controls">
+      <button id="startBtn" class="btn-primary">Kamerani yoqish</button>
+      <button id="snapBtn" class="btn-secondary" disabled>Rangni olish</button>
+    </div>
+    
+    <div class="color-display">
+      <div class="color-box" id="colorBox"></div>
+      <div class="color-info">
+        <div class="color-label">HEX qiymati</div>
+        <div class="color-value" id="hex">#000000</div>
+        <button class="copy-btn" id="copyBtn">Nusxalash</button>
+      </div>
+    </div>
+    
+    <div class="instructions">
+      1. "Kamerani yoqish" tugmasini bosing<br>
+      2. Istagan rangni kameraga ko'rsating<br>
+      3. "Rangni olish" tugmasini bosing<br>
+      4. HEX qiymatini nusxalash uchun "Nusxalash" tugmasini bosing
+    </div>
+  </div>
+  
+  <canvas id="canvas" width="360" height="240"></canvas>
 
-<h2>❤️ Yurak Urishi</h2>
-<video id="video" autoplay playsinline></video>
-<canvas id="canvas" width="250" height="250" style="display:none;"></canvas>
-
-<div>
-  <button id="startBtn">Boshlash</button>
-  <button id="stopBtn">To'xtatish</button>
-</div>
-
-<div id="bpmBox">
-  BPM: <span id="bpm">0</span><br>
-  Urishlar: <span id="beats">0</span>
-</div>
-<div id="status">Barmoqni kameraga qo'ying...</div>
-
-<script>
-let video = document.getElementById("video");
-let canvas = document.getElementById("canvas");
-let ctx = canvas.getContext("2d");
-let bpmText = document.getElementById("bpm");
-let beatsText = document.getElementById("beats");
-let statusText = document.getElementById("status");
-
-let running = false;
-let stream;
-let signal = [];
-let lastPeaks = [];
-
-document.getElementById("startBtn").onclick = async () => {
-  running = true;
-  signal = [];
-  lastPeaks = [];
-  bpmText.innerText = "0";
-  beatsText.innerText = "0";
-
-  stream = await navigator.mediaDevices.getUserMedia({
-    video:{ facingMode:"environment", width:300, height:300 }
-  });
-  video.srcObject = stream;
-  statusText.innerText = "Barmoqni kameraga qo'ying va flash yoqing...";
-  measureLoop();
-};
-
-document.getElementById("stopBtn").onclick = () => {
-  running = false;
-  if(stream) stream.getTracks().forEach(t=>t.stop());
-  bpmText.innerText = "0";
-  beatsText.innerText = "0";
-  statusText.innerText = "To'xtatildi";
-  signal=[];
-  lastPeaks=[];
-};
-
-function measureLoop() {
-  if(!running) return;
-
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
-  let frame=ctx.getImageData(0,0,canvas.width,canvas.height);
-  let d=frame.data;
-
-  let sumR=0, sumG=0, sumB=0, count=d.length/4;
-  for(let i=0;i<d.length;i+=4){ sumR+=d[i]; sumG+=d[i+1]; sumB+=d[i+2]; }
-
-  let R=sumR/count, G=sumG/count, B=sumB/count;
-
-  // Finger detection (iPhone 11 uchun)
-  let finger = (R>90 && R>G*1.2 && R>B*1.2);
-  if(!finger){
-    bpmText.innerText="0";
-    beatsText.innerText="0";
-    signal=[];
-    lastPeaks=[];
-    statusText.innerText="Barmoq aniqlanmadi ❌";
-    requestAnimationFrame(measureLoop);
-    return;
-  }
-
-  statusText.innerText="O'lchanmoqda... ✨";
-  let now=Date.now();
-  signal.push({t:now,v:R});
-  signal=signal.filter(p=>now-p.t<10000);
-
-  // Smooth + peak detection
-  let smooth = movingAverage(signal.map(p=>p.v),5);
-  let peaks=[];
-  for(let i=1;i<smooth.length-1;i++){
-    if(smooth[i]>smooth[i-1] && smooth[i]>smooth[i+1]){
-      peaks.push(signal[i].t);
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const colorBox = document.getElementById('colorBox');
+    const hexText = document.getElementById('hex');
+    const startBtn = document.getElementById('startBtn');
+    const snapBtn = document.getElementById('snapBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    
+    let stream = null;
+    let isCameraActive = false;
+    
+    // Kamerani yoqish
+    startBtn.addEventListener('click', async () => {
+      try {
+        // Old kamera (selfie) yoki orqa kamerani tanlash
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
+        let cameraMode = 'environment'; // default orqa kamera
+        
+        // Agar orqa kamera bo'lmasa, old kamerani ishlat
+        if (videoDevices.length === 1) {
+          cameraMode = 'user'; // old kamera
+        }
+        
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            facingMode: cameraMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        });
+        
+        video.srcObject = stream;
+        
+        // Kamerani to'g'ri yo'nalishda ko'rsatish
+        video.style.transform = 'scaleX(1)'; // Normal holat (mirror emas)
+        
+        isCameraActive = true;
+        startBtn.textContent = 'Kamera yoqilgan';
+        startBtn.disabled = true;
+        snapBtn.disabled = false;
+        
+      } catch (error) {
+        alert('Kamerani ishga tushirishda xatolik: ' + error.message);
+        console.error('Camera error:', error);
+      }
+    });
+    
+    // Rangni olish
+    snapBtn.addEventListener('click', () => {
+      if (!isCameraActive) return;
+      
+      // Canvas'ni to'g'ri yo'nalishda sozlash
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0); // Transformatsiyani reset qilish
+      
+      // Videodan kadr olish (to'g'ri yo'nalishda)
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // Markaziy piksel rangini olish
+      const x = Math.floor(canvas.width / 2);
+      const y = Math.floor(canvas.height / 2);
+      const pixelData = ctx.getImageData(x, y, 1, 1).data;
+      
+      // RGB qiymatlari
+      const r = pixelData[0];
+      const g = pixelData[1];
+      const b = pixelData[2];
+      
+      // HEX formatga o'tkazish
+      const hex = '#' + 
+        r.toString(16).padStart(2, '0') + 
+        g.toString(16).padStart(2, '0') + 
+        b.toString(16).padStart(2, '0');
+      
+      // Natijalarni ko'rsatish
+      hexText.textContent = hex.toUpperCase();
+      colorBox.style.backgroundColor = hex;
+      
+      ctx.restore();
+      
+      // Kamera to'xtatish
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        isCameraActive = false;
+        startBtn.textContent = 'Kamerani yoqish';
+        startBtn.disabled = false;
+        snapBtn.disabled = true;
+        video.style.transform = 'scaleX(1)'; // Transformatsiyani qaytarish
+      }
+    });
+    
+    // Kamera yo'nalishini tuzatish funksiyasi
+    function fixCameraOrientation() {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        // Agar video balandligi kengligidan katta bo'lsa (portret holati)
+        if (video.videoHeight > video.videoWidth) {
+          // Ekran o'lchamiga moslashtirish
+          video.style.objectFit = 'cover';
+        }
+      }
     }
-  }
-
-  // Yangi tepaliklar
-  lastPeaks = peaks;
-
-  // BPM
-  if(peaks.length>=2){
-    let diffs=[];
-    for(let i=1;i<peaks.length;i++) diffs.push(peaks[i]-peaks[i-1]);
-    let avg = diffs.reduce((a,b)=>a+b)/diffs.length;
-    let bpm = 60000/avg;
-    if(bpm>=40 && bpm<=200) bpmText.innerText=Math.round(bpm);
-  }
-
-  // Urishlar soni
-  beatsText.innerText=peaks.length;
-
-  requestAnimationFrame(measureLoop);
-}
-
-function movingAverage(data,w){
-  return data.map((_,i,arr)=>{
-    let s=Math.max(0,i-w);
-    let slice=arr.slice(s,i+1);
-    return slice.reduce((a,b)=>a+b)/slice.length;
-  });
-}
-</script>
+    
+    // Video yuklanganda kamera yo'nalishini tekshirish
+    video.addEventListener('loadedmetadata', fixCameraOrientation);
+    
+    // Rangni nusxalash
+    copyBtn.addEventListener('click', () => {
+      const hexValue = hexText.textContent;
+      navigator.clipboard.writeText(hexValue)
+        .then(() => {
+          // Qisqacha tasdiqlash
+          const originalText = copyBtn.textContent;
+          copyBtn.textContent = 'Nusxalandi!';
+          setTimeout(() => {
+            copyBtn.textContent = originalText;
+          }, 1500);
+        })
+        .catch(err => {
+          console.error('Nusxalashda xatolik:', err);
+          // Fallback metod
+          const textArea = document.createElement('textarea');
+          textArea.value = hexValue;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+          
+          copyBtn.textContent = 'Nusxalandi!';
+          setTimeout(() => {
+            copyBtn.textContent = 'Nusxalash';
+          }, 1500);
+        });
+    });
+  </script>
 </body>
 </html>
