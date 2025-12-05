@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yurak Urishi</title>
+<style>
+  body {
+    margin:0;
+    font-family: Arial, sans-serif;
+    background:#111;
+    color:#fff;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:20px;
+  }
+  h2 { margin-top:30px; font-size:24px; }
+  video { width:250px; border-radius:12px; margin-top:20px; background:#000; }
+  button { margin-top:20px; padding:12px 25px; font-size:18px; border:none; border-radius:10px; cursor:pointer; }
+  #startBtn { background:#00c853; color:#fff; }
+  #stopBtn { background:#d50000; margin-left:10px; color:#fff; }
+  #bpmBox { margin-top:25px; font-size:22px; padding:15px 30px; border-radius:15px; background:#222; }
+  #status { margin-top:10px; font-size:16px; opacity:0.8; }
+</style>
+</head>
+<body>
+
+<h2>❤️ Yurak Urishi</h2>
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas" width="250" height="250" style="display:none;"></canvas>
+
+<div>
+  <button id="startBtn">Boshlash</button>
+  <button id="stopBtn">To'xtatish</button>
+</div>
+
+<div id="bpmBox">
+  BPM: <span id="bpm">0</span><br>
+  Urishlar: <span id="beats">0</span>
+</div>
+<div id="status">Barmoqni kameraga qo'ying...</div>
+
+<script>
+let video = document.getElementById("video");
+let canvas = document.getElementById("canvas");
+let ctx = canvas.getContext("2d");
+let bpmText = document.getElementById("bpm");
+let beatsText = document.getElementById("beats");
+let statusText = document.getElementById("status");
+
+let running = false;
+let stream;
+let signal = [];
+let lastPeaks = [];
+
+document.getElementById("startBtn").onclick = async () => {
+  running = true;
+  signal = [];
+  lastPeaks = [];
+  bpmText.innerText = "0";
+  beatsText.innerText = "0";
+
+  stream = await navigator.mediaDevices.getUserMedia({
+    video:{ facingMode:"environment", width:300, height:300 }
+  });
+  video.srcObject = stream;
+  statusText.innerText = "Barmoqni kameraga qo'ying...";
+  measureLoop();
+};
+
+document.getElementById("stopBtn").onclick = () => {
+  running = false;
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  bpmText.innerText = "0";
+  beatsText.innerText = "0";
+  statusText.innerText = "To'xtatildi";
+  signal=[];
+  lastPeaks=[];
+};
+
+function measureLoop() {
+  if(!running) return;
+
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  let frame=ctx.getImageData(0,0,canvas.width,canvas.height);
+  let d=frame.data;
+
+  let sumR=0, sumG=0, sumB=0, count=d.length/4;
+  for(let i=0;i<d.length;i+=4){ sumR+=d[i]; sumG+=d[i+1]; sumB+=d[i+2]; }
+
+  let R=sumR/count, G=sumG/count, B=sumB/count;
+
+  // Finger detection
+  let finger = (R>90 && R>G*1.2 && R>B*1.2);
+  if(!finger){
+    bpmText.innerText="0";
+    beatsText.innerText="0";
+    signal=[];
+    lastPeaks=[];
+    statusText.innerText="Barmoq aniqlanmadi ❌";
+    requestAnimationFrame(measureLoop);
+    return;
+  }
+
+  statusText.innerText="O'lchanmoqda... ✨";
+  let now=Date.now();
+  signal.push({t:now,v:R});
+  signal=signal.filter(p=>now-p.t<10000);
+
+  // Peak detection
+  let smooth = movingAverage(signal.map(p=>p.v),5);
+  let peaks=[];
+  for(let i=1;i<smooth.length-1;i++){
+    if(smooth[i]>smooth[i-1] && smooth[i]>smooth[i+1]){
+      peaks.push(signal[i].t);
+    }
+  }
+
+  // Yangi tepaliklar soni
+  let newPeaks = peaks.filter(t => !lastPeaks.includes(t));
+  if(newPeaks.length>0) lastPeaks=peaks;
+
+  // BPM
+  if(peaks.length>=2){
+    let diffs=[];
+    for(let i=1;i<peaks.length;i++) diffs.push(peaks[i]-peaks[i-1]);
+    let avg = diffs.reduce((a,b)=>a+b)/diffs.length;
+    let bpm = 60000/avg;
+    if(bpm>=40 && bpm<=200) bpmText.innerText=Math.round(bpm);
+  }
+
+  // Urishlar soni
+  beatsText.innerText=peaks.length;
+
+  requestAnimationFrame(measureLoop);
+}
+
+function movingAverage(data,w){
+  return data.map((_,i,arr)=>{
+    let s=Math.max(0,i-w);
+    let slice=arr.slice(s,i+1);
+    return slice.reduce((a,b)=>a+b)/slice.length;
+  });
+}
+</script>
+</body>
+</html>
