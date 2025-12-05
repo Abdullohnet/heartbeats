@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>color specifier</title>
+<title>Color Specifier</title>
 <style>
   * {
     margin: 0;
@@ -61,8 +61,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    /* Kamerani to'g'ri ko'rsatish uchun */
-    transform: scaleX(1); /* Normal holat */
+    transform: scaleX(1); /* Mirror effektini olib tashlash */
   }
   
   .camera-overlay {
@@ -75,8 +74,7 @@
     border: 2px solid rgba(255,255,255,0.8);
     border-radius: 50%;
     pointer-events: none;
-    /* Overlay ham to'g'ri ko'rinishi kerak */
-    transform: translate(-50%, -50%) scaleX(1);
+    box-shadow: 0 0 0 1000px rgba(0,0,0,0.3);
   }
   
   .controls {
@@ -128,6 +126,11 @@
     border-radius: 12px;
     border: 1px solid #e5e7eb;
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    transition: transform 0.3s ease;
+  }
+  
+  .color-box:hover {
+    transform: scale(1.05);
   }
   
   .color-info {
@@ -174,15 +177,13 @@
   
   canvas {
     display: none;
-    /* Canvas ham to'g'ri bo'lishi kerak */
-    transform: scaleX(1);
   }
 </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>Color specifier</h1>
+      <h1>Color Specifier</h1>
       <div class="subtitle">Kamera orqali atrofdagi ranglarni aniqlang</div>
     </div>
     
@@ -228,117 +229,258 @@
     let stream = null;
     let isCameraActive = false;
     
-    // Kamerani yoqish
-    startBtn.addEventListener('click', async () => {
+    // Avtomatik ravishda orqa kamerani tanlash funksiyasi
+    async function getBackCamera() {
       try {
-        // Old kamera (selfie) yoki orqa kamerani tanlash
+        // Barcha qurilmalarni olish
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(device => device.kind === 'videoinput');
         
-        let cameraMode = 'environment'; // default orqa kamera
+        // Telefonlarda orqa kamera odatda "back" yoki "environment" deb nomlanadi
+        let backCamera = null;
         
-        // Agar orqa kamera bo'lmasa, old kamerani ishlat
-        if (videoDevices.length === 1) {
-          cameraMode = 'user'; // old kamera
+        // Avvalo, "environment" (orqa) kamerani qidirish
+        try {
+          const constraints = { 
+            video: { 
+              facingMode: { exact: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            } 
+          };
+          
+          // "environment" kamerani sinab ko'rish
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          return stream;
+        } catch (err) {
+          console.log("Environment kamera topilmadi, boshqa variantlar sinanmoqda...");
         }
         
+        // Agar environment kamera ishlamasa, barcha kameralarni tekshirish
+        for (const device of videoDevices) {
+          try {
+            // Har bir kamera uchun alohida constraint yaratish
+            const constraints = {
+              video: {
+                deviceId: { exact: device.deviceId },
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+              }
+            };
+            
+            // Kamera sinab ko'rilmoqda
+            const tempStream = await navigator.mediaDevices.getUserMedia(constraints);
+            
+            // Track'larni olish
+            const tracks = tempStream.getVideoTracks();
+            if (tracks.length > 0) {
+              // Kameraning yo'nalishini aniqlash
+              const capabilities = tracks[0].getCapabilities();
+              const settings = tracks[0].getSettings();
+              
+              // Agar kamera orqa kamera bo'lsa (faceingMode bilan aniqlash)
+              if (settings.facingMode === "environment" || 
+                  settings.facingMode === "back" ||
+                  device.label.toLowerCase().includes("back") ||
+                  device.label.toLowerCase().includes("rear")) {
+                
+                // Oldingi stream'ni to'xtatish
+                tempStream.getTracks().forEach(track => track.stop());
+                
+                // Yangi constraint yaratish
+                const finalConstraints = {
+                  video: {
+                    deviceId: { exact: device.deviceId },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                  }
+                };
+                
+                stream = await navigator.mediaDevices.getUserMedia(finalConstraints);
+                return stream;
+              }
+              
+              // Orqa kamera topilmasa, birinchi topilgan kamera
+              if (!backCamera) {
+                backCamera = device;
+              }
+              
+              // Test stream'ni to'xtatish
+              tempStream.getTracks().forEach(track => track.stop());
+            }
+          } catch (err) {
+            console.log(`Kamera ${device.label} bilan muammo:`, err);
+          }
+        }
+        
+        // Agar orqa kamera topilmasa, oxirgi variant sifatida birinchi kamera
+        if (videoDevices.length > 0 && backCamera) {
+          const constraints = {
+            video: {
+              deviceId: { exact: backCamera.deviceId },
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            }
+          };
+          
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          return stream;
+        }
+        
+        // Hech qanday kamera topilmasa, default
         stream = await navigator.mediaDevices.getUserMedia({
           video: { 
-            facingMode: cameraMode,
+            facingMode: "environment",
             width: { ideal: 1280 },
             height: { ideal: 720 }
           }
         });
         
+        return stream;
+        
+      } catch (error) {
+        console.error("Kamera topishda xatolik:", error);
+        throw error;
+      }
+    }
+    
+    // Kamerani yoqish
+    startBtn.addEventListener('click', async () => {
+      try {
+        // Kamera ruxsatini so'rash
+        startBtn.textContent = 'Kamera ochilmoqda...';
+        startBtn.disabled = true;
+        
+        // Orqa kamerani olish
+        stream = await getBackCamera();
+        
         video.srcObject = stream;
         
-        // Kamerani to'g'ri yo'nalishda ko'rsatish
-        video.style.transform = 'scaleX(1)'; // Normal holat (mirror emas)
+        // Kamerani to'g'ri yo'nalishda ko'rsatish (mirror emas)
+        video.style.transform = 'scaleX(1)';
         
         isCameraActive = true;
         startBtn.textContent = 'Kamera yoqilgan';
-        startBtn.disabled = true;
         snapBtn.disabled = false;
         
+        // Video yuklanganda kamera yo'nalishini tekshirish
+        video.onloadedmetadata = () => {
+          // Video yo'nalishini tekshirish va sozlash
+          fixCameraOrientation();
+        };
+        
       } catch (error) {
-        alert('Kamerani ishga tushirishda xatolik: ' + error.message);
-        console.error('Camera error:', error);
+        console.error('Kamera xatosi:', error);
+        
+        // Agar orqa kamera ishlamasa, old kamerani sinab ko'rish
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+              facingMode: "user",
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            }
+          });
+          
+          video.srcObject = stream;
+          video.style.transform = 'scaleX(-1)'; // Old kamera uchun mirror
+          
+          isCameraActive = true;
+          startBtn.textContent = 'Kamera yoqilgan (old)';
+          snapBtn.disabled = false;
+          
+          alert("Orqa kamera topilmadi, old kamera ishlatilmoqda");
+        } catch (fallbackError) {
+          alert('Kamerani ishga tushirishda xatolik: ' + error.message);
+          startBtn.textContent = 'Kamerani yoqish';
+          startBtn.disabled = false;
+        }
       }
     });
     
-    // Rangni olish
-    snapBtn.addEventListener('click', () => {
-      if (!isCameraActive) return;
-      
-      // Canvas'ni to'g'ri yo'nalishda sozlash
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0); // Transformatsiyani reset qilish
-      
-      // Videodan kadr olish (to'g'ri yo'nalishda)
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      // Markaziy piksel rangini olish
-      const x = Math.floor(canvas.width / 2);
-      const y = Math.floor(canvas.height / 2);
-      const pixelData = ctx.getImageData(x, y, 1, 1).data;
-      
-      // RGB qiymatlari
-      const r = pixelData[0];
-      const g = pixelData[1];
-      const b = pixelData[2];
-      
-      // HEX formatga o'tkazish
-      const hex = '#' + 
-        r.toString(16).padStart(2, '0') + 
-        g.toString(16).padStart(2, '0') + 
-        b.toString(16).padStart(2, '0');
-      
-      // Natijalarni ko'rsatish
-      hexText.textContent = hex.toUpperCase();
-      colorBox.style.backgroundColor = hex;
-      
-      ctx.restore();
-      
-      // Kamera to'xtatish
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        isCameraActive = false;
-        startBtn.textContent = 'Kamerani yoqish';
-        startBtn.disabled = false;
-        snapBtn.disabled = true;
-        video.style.transform = 'scaleX(1)'; // Transformatsiyani qaytarish
-      }
-    });
-    
-    // Kamera yo'nalishini tuzatish funksiyasi
+    // Kameraning yo'nalishini tuzatish
     function fixCameraOrientation() {
       if (video.videoWidth > 0 && video.videoHeight > 0) {
-        // Agar video balandligi kengligidan katta bo'lsa (portret holati)
+        // Agar video balandligi kengligidan katta bo'lsa
         if (video.videoHeight > video.videoWidth) {
-          // Ekran o'lchamiga moslashtirish
           video.style.objectFit = 'cover';
+          video.style.transform = 'rotate(0deg) scaleX(1)';
         }
       }
     }
     
-    // Video yuklanganda kamera yo'nalishini tekshirish
-    video.addEventListener('loadedmetadata', fixCameraOrientation);
+    // Rangni olish
+    snapBtn.addEventListener('click', () => {
+      if (!isCameraActive || !stream) return;
+      
+      try {
+        // Canvas'ni tozalash va sozlash
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        
+        // Videodan kadr olish
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // Markaziy piksel rangini olish
+        const x = Math.floor(canvas.width / 2);
+        const y = Math.floor(canvas.height / 2);
+        const pixelData = ctx.getImageData(x, y, 1, 1).data;
+        
+        // RGB qiymatlari
+        const r = pixelData[0];
+        const g = pixelData[1];
+        const b = pixelData[2];
+        
+        // HEX formatga o'tkazish
+        const hex = '#' + 
+          r.toString(16).padStart(2, '0') + 
+          g.toString(16).padStart(2, '0') + 
+          b.toString(16).padStart(2, '0');
+        
+        // Natijalarni ko'rsatish
+        hexText.textContent = hex.toUpperCase();
+        colorBox.style.backgroundColor = hex;
+        
+        ctx.restore();
+        
+        // Kamera to'xtatish (faqat bir marta rang olish uchun)
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          isCameraActive = false;
+          startBtn.textContent = 'Kamerani yoqish';
+          startBtn.disabled = false;
+          snapBtn.disabled = true;
+        }
+        
+      } catch (error) {
+        console.error('Rang olishda xatolik:', error);
+        alert('Rangni olishda xatolik yuz berdi');
+      }
+    });
     
     // Rangni nusxalash
     copyBtn.addEventListener('click', () => {
       const hexValue = hexText.textContent;
+      
+      // Clipboard API yordamida nusxalash
       navigator.clipboard.writeText(hexValue)
         .then(() => {
           // Qisqacha tasdiqlash
           const originalText = copyBtn.textContent;
           copyBtn.textContent = 'Nusxalandi!';
+          copyBtn.style.background = '#10b981';
+          copyBtn.style.color = 'white';
+          
           setTimeout(() => {
             copyBtn.textContent = originalText;
+            copyBtn.style.background = '#f1f5f9';
+            copyBtn.style.color = '#475569';
           }, 1500);
         })
         .catch(err => {
           console.error('Nusxalashda xatolik:', err);
-          // Fallback metod
+          
+          // Fallback metod - textarea orqali
           const textArea = document.createElement('textarea');
           textArea.value = hexValue;
           document.body.appendChild(textArea);
@@ -351,6 +493,11 @@
             copyBtn.textContent = 'Nusxalash';
           }, 1500);
         });
+    });
+    
+    // Sayt yuklanganda fokusni kamera tugmasiga qo'yish
+    window.addEventListener('load', () => {
+      startBtn.focus();
     });
   </script>
 </body>
